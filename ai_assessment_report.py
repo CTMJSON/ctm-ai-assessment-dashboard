@@ -41,15 +41,15 @@ PAGE_SIZE = 50
 # Field "roles" the dashboard knows how to render. Each role maps to a
 # CTM custom_fields key via the config. Roles are optional - if a key is
 # missing or null, the corresponding section degrades gracefully.
-SUPPORTED_ROLES = ("score", "star", "wrap_up", "strengths", "coaching", "notes")
+SUPPORTED_ROLES = ("score", "star", "categories", "highlights", "concerns", "notes")
 
 DEFAULT_FIELD_LABELS = {
-    "score": "Total Call Score",
+    "score": "Score",
     "star": "Star Rating",
-    "wrap_up": "Wrap-Up Code",
-    "strengths": "Agent Strengths",
-    "coaching": "Coaching Opportunities",
-    "notes": "Score Notes",
+    "categories": "Category",
+    "highlights": "Highlights",
+    "concerns": "Concerns",
+    "notes": "Notes",
 }
 
 HOUR_LABELS = [
@@ -438,8 +438,8 @@ def split_multivalue(raw):
     return [item.strip() for item in items if item and str(item).strip()]
 
 
-def split_coaching(raw):
-    """Coaching opportunities can be ; or , delimited."""
+def split_concerns(raw):
+    """Concerns can be ; or , delimited."""
     if raw is None:
         return []
     if isinstance(raw, list):
@@ -504,9 +504,9 @@ def empty_stats():
         "stars": [],
         "by_kind": Counter(),
         "by_agent": defaultdict(lambda: {"count": 0, "scores": [], "stars": []}),
-        "wrapup_codes": Counter(),
-        "strengths": Counter(),
-        "coaching": Counter(),
+        "categories": Counter(),
+        "highlights": Counter(),
+        "concerns": Counter(),
         "hour_counts": Counter(),
         "weekday_counts": Counter(),
         "date_counts": Counter(),
@@ -536,12 +536,12 @@ def add_activity(stats, activity, fields):
     if score is not None: entry["scores"].append(score)
     if star is not None: entry["stars"].append(star)
 
-    for code in split_multivalue(get_field(activity, fields, "wrap_up")):
-        stats["wrapup_codes"][code] += 1
-    for s in split_multivalue(get_field(activity, fields, "strengths")):
-        stats["strengths"][s] += 1
-    for c in split_coaching(get_field(activity, fields, "coaching")):
-        stats["coaching"][c] += 1
+    for v in split_multivalue(get_field(activity, fields, "categories")):
+        stats["categories"][v] += 1
+    for v in split_multivalue(get_field(activity, fields, "highlights")):
+        stats["highlights"][v] += 1
+    for v in split_concerns(get_field(activity, fields, "concerns")):
+        stats["concerns"][v] += 1
 
     if dt:
         stats["hour_counts"][dt.hour] += 1
@@ -560,9 +560,9 @@ def add_activity(stats, activity, fields):
         "agent": name,
         "score": score,
         "star": star,
-        "wrap_up": clean_text(get_field(activity, fields, "wrap_up"), ""),
-        "strengths": clean_text(get_field(activity, fields, "strengths"), ""),
-        "coaching": clean_text(get_field(activity, fields, "coaching"), ""),
+        "categories": clean_text(get_field(activity, fields, "categories"), ""),
+        "highlights": clean_text(get_field(activity, fields, "highlights"), ""),
+        "concerns": clean_text(get_field(activity, fields, "concerns"), ""),
         "notes": clean_text(get_field(activity, fields, "notes"), ""),
         "duration": to_int(activity.get("duration")),
     })
@@ -632,9 +632,9 @@ def stats_to_payload(stats, date_keys):
     kind_labels = [k for k, _ in stats["by_kind"].most_common()]
     kind_values = [stats["by_kind"][k] for k in kind_labels]
 
-    wrapup = stats["wrapup_codes"].most_common(15)
-    strengths = stats["strengths"].most_common(15)
-    coaching = stats["coaching"].most_common(15)
+    categories = stats["categories"].most_common(15)
+    highlights = stats["highlights"].most_common(15)
+    concerns = stats["concerns"].most_common(15)
 
     agent_rows = sorted(stats["agent_rows"], key=lambda r: (-(r["count"]), r["name"]))[:30]
 
@@ -649,9 +649,9 @@ def stats_to_payload(stats, date_keys):
         "hour": {"labels": HOUR_LABELS, "values": hour_values},
         "daily": {"labels": date_keys, "volume": daily_volume, "avg_score": daily_avg_score},
         "by_kind": {"labels": kind_labels, "values": kind_values},
-        "wrapup": {"labels": [w[0] for w in wrapup], "values": [w[1] for w in wrapup]},
-        "strengths": {"labels": [w[0] for w in strengths], "values": [w[1] for w in strengths]},
-        "coaching": {"labels": [w[0] for w in coaching], "values": [w[1] for w in coaching]},
+        "categories": {"labels": [w[0] for w in categories], "values": [w[1] for w in categories]},
+        "highlights": {"labels": [w[0] for w in highlights], "values": [w[1] for w in highlights]},
+        "concerns": {"labels": [w[0] for w in concerns], "values": [w[1] for w in concerns]},
         "agents": agent_rows,
         "low_scores": [serialize_sample(s) for s in stats["low_scores"]],
         "high_scores": [serialize_sample(s) for s in stats["high_scores"]],
@@ -668,9 +668,9 @@ def serialize_sample(sample):
         "agent": sample.get("agent"),
         "score": sample.get("score"),
         "star": sample.get("star"),
-        "wrap_up": sample.get("wrap_up"),
-        "strengths": sample.get("strengths"),
-        "coaching": sample.get("coaching"),
+        "categories": sample.get("categories"),
+        "highlights": sample.get("highlights"),
+        "concerns": sample.get("concerns"),
         "notes": sample.get("notes"),
         "duration": sample.get("duration"),
     }
@@ -756,17 +756,17 @@ def render_summary_kpis(overall, segments, slices, fetch_meta, fields):
     cards.append(render_kpi("Calls", f"{inbound + outbound:,}", f"{inbound:,} in / {outbound:,} out"))
     cards.append(render_kpi("Chats", f"{chat:,}", "Direction=chat", "kpi-blue"))
 
-    if fields.get("wrap_up"):
+    if fields.get("categories"):
         cards.append(render_kpi(
-            f"Top {fields['wrap_up']['label']}",
-            _top_label(overall["wrapup_codes"]),
-            _top_share(overall["wrapup_codes"], total),
+            f"Top {fields['categories']['label']}",
+            _top_label(overall["categories"]),
+            _top_share(overall["categories"], total),
         ))
-    if fields.get("coaching"):
+    if fields.get("concerns"):
         cards.append(render_kpi(
-            f"Top {fields['coaching']['label']}",
-            _top_label(overall["coaching"]),
-            _top_share(overall["coaching"], total),
+            f"Top {fields['concerns']['label']}",
+            _top_label(overall["concerns"]),
+            _top_share(overall["concerns"], total),
             "kpi-warn",
         ))
 
@@ -793,12 +793,12 @@ def render_segment_compare(segments, slices, fields):
         ("Calls (outbound)", lambda s: num(s["by_kind"].get("outbound", 0))),
         ("Chats", lambda s: num(s["by_kind"].get("chat", 0))),
     ])
-    if fields.get("wrap_up"):
-        rows.append((f"Top {fields['wrap_up']['label']}", lambda s: _top_label(s["wrapup_codes"], "--")))
-    if fields.get("strengths"):
-        rows.append((f"Top {fields['strengths']['label']}", lambda s: _top_label(s["strengths"], "--")))
-    if fields.get("coaching"):
-        rows.append((f"Top {fields['coaching']['label']}", lambda s: _top_label(s["coaching"], "--")))
+    if fields.get("categories"):
+        rows.append((f"Top {fields['categories']['label']}", lambda s: _top_label(s["categories"], "--")))
+    if fields.get("highlights"):
+        rows.append((f"Top {fields['highlights']['label']}", lambda s: _top_label(s["highlights"], "--")))
+    if fields.get("concerns"):
+        rows.append((f"Top {fields['concerns']['label']}", lambda s: _top_label(s["concerns"], "--")))
 
     header_cells = "".join(
         f'<th>{esc(s["label"])} ({esc(s["short"])})</th>' for s in segments
@@ -876,9 +876,9 @@ def render_html(customer_name, account_id, start_date, end_date, segments, slice
 
     has_score = fields.get("score") is not None
     has_star = fields.get("star") is not None
-    has_wrapup = fields.get("wrap_up") is not None
-    has_strengths = fields.get("strengths") is not None
-    has_coaching = fields.get("coaching") is not None
+    has_categories = fields.get("categories") is not None
+    has_highlights = fields.get("highlights") is not None
+    has_concerns = fields.get("concerns") is not None
 
     score_section = ""
     if has_score or has_star:
@@ -894,18 +894,23 @@ def render_html(customer_name, account_id, start_date, end_date, segments, slice
         </section>
         """
 
-    wrap_strength_section = ""
+    categorical_section = ""
     panels = []
-    if has_wrapup:
-        panels.append(f'<div class="panel"><h3>Top {esc(fields["wrap_up"]["label"])}</h3><table class="data-table"><thead><tr><th>Value</th><th class="num">Count</th><th>Share</th></tr></thead><tbody id="wrapupRows"></tbody></table></div>')
-    if has_strengths:
-        panels.append(f'<div class="panel"><h3>Top {esc(fields["strengths"]["label"])}</h3><table class="data-table"><thead><tr><th>Value</th><th class="num">Count</th><th>Share</th></tr></thead><tbody id="strengthRows"></tbody></table></div>')
-    if has_coaching:
-        panels.append(f'<div class="panel"><h3>Top {esc(fields["coaching"]["label"])}</h3><table class="data-table"><thead><tr><th>Value</th><th class="num">Count</th><th>Share</th></tr></thead><tbody id="coachingRows"></tbody></table></div>')
+    section_labels = []
+    if has_categories:
+        section_labels.append(fields["categories"]["label"])
+        panels.append(f'<div class="panel"><h3>Top {esc(fields["categories"]["label"])}</h3><table class="data-table"><thead><tr><th>Value</th><th class="num">Count</th><th>Share</th></tr></thead><tbody id="categoryRows"></tbody></table></div>')
+    if has_highlights:
+        section_labels.append(fields["highlights"]["label"])
+        panels.append(f'<div class="panel"><h3>Top {esc(fields["highlights"]["label"])}</h3><table class="data-table"><thead><tr><th>Value</th><th class="num">Count</th><th>Share</th></tr></thead><tbody id="highlightRows"></tbody></table></div>')
+    if has_concerns:
+        section_labels.append(fields["concerns"]["label"])
+        panels.append(f'<div class="panel"><h3>Top {esc(fields["concerns"]["label"])}</h3><table class="data-table"><thead><tr><th>Value</th><th class="num">Count</th><th>Share</th></tr></thead><tbody id="concernRows"></tbody></table></div>')
     if panels:
-        wrap_strength_section = f"""
+        section_title = " · ".join(section_labels) if section_labels else "Categorical Outputs"
+        categorical_section = f"""
         <section class="dashboard-section">
-          <div class="section-title">Wrap-Up, Strengths &amp; Coaching</div>
+          <div class="section-title">{esc(section_title)}</div>
           <div class="table-grid">{"".join(panels)}</div>
         </section>
         """
@@ -922,14 +927,16 @@ def render_html(customer_name, account_id, start_date, end_date, segments, slice
         "{{fetch_notes}}": fetch_notes,
         "{{segment_styles}}": segment_styles,
         "{{score_section}}": score_section,
-        "{{wrap_strength_section}}": wrap_strength_section,
+        "{{categorical_section}}": categorical_section,
         "{{payload}}": js(payload),
         "{{field_labels}}": js(field_labels_js),
         "{{has_score}}": "true" if has_score else "false",
         "{{has_star}}": "true" if has_star else "false",
-        "{{has_wrapup}}": "true" if has_wrapup else "false",
-        "{{has_strengths}}": "true" if has_strengths else "false",
-        "{{has_coaching}}": "true" if has_coaching else "false",
+        "{{has_categories}}": "true" if has_categories else "false",
+        "{{has_highlights}}": "true" if has_highlights else "false",
+        "{{has_concerns}}": "true" if has_concerns else "false",
+        "{{highlights_label}}": esc(fields["highlights"]["label"]) if has_highlights else "Highlights",
+        "{{concerns_label}}": esc(fields["concerns"]["label"]) if has_concerns else "Concerns",
         "{{output_file}}": esc(output_file),
     }
     doc = DASHBOARD_TEMPLATE
@@ -1071,7 +1078,7 @@ a:hover{text-decoration:underline}
     </div>
   </section>
 
-  {{wrap_strength_section}}
+  {{categorical_section}}
 
   <section class="dashboard-section">
     <div class="section-title">Agent Leaderboard</div>
@@ -1087,7 +1094,7 @@ a:hover{text-decoration:underline}
     <div class="section-title">Lowest-Scoring Assessments</div>
     <div class="panel" style="overflow-x:auto">
       <table class="data-table assessment-table wide">
-        <thead><tr><th>When</th><th>Dir</th><th>Agent</th><th class="num">Score</th><th>Star</th><th>Coaching</th><th>Notes</th></tr></thead>
+        <thead><tr><th>When</th><th>Dir</th><th>Agent</th><th class="num">Score</th><th>Star</th><th>{{concerns_label}}</th><th>Notes</th></tr></thead>
         <tbody id="lowRows"></tbody>
       </table>
     </div>
@@ -1097,7 +1104,7 @@ a:hover{text-decoration:underline}
     <div class="section-title">Highest-Scoring Assessments</div>
     <div class="panel" style="overflow-x:auto">
       <table class="data-table assessment-table wide">
-        <thead><tr><th>When</th><th>Dir</th><th>Agent</th><th class="num">Score</th><th>Star</th><th>Strengths</th><th>Notes</th></tr></thead>
+        <thead><tr><th>When</th><th>Dir</th><th>Agent</th><th class="num">Score</th><th>Star</th><th>{{highlights_label}}</th><th>Notes</th></tr></thead>
         <tbody id="highRows"></tbody>
       </table>
     </div>
@@ -1116,9 +1123,9 @@ const FIELD_LABELS = {{field_labels}};
 const ACCOUNT_ID = '{{account_id}}';
 const HAS_SCORE = {{has_score}};
 const HAS_STAR = {{has_star}};
-const HAS_WRAPUP = {{has_wrapup}};
-const HAS_STRENGTHS = {{has_strengths}};
-const HAS_COACHING = {{has_coaching}};
+const HAS_CATEGORIES = {{has_categories}};
+const HAS_HIGHLIGHTS = {{has_highlights}};
+const HAS_CONCERNS = {{has_concerns}};
 
 const palette = ['#00b5e2','#1e90ff','#00d4aa','#f59e0b','#8b5cf6','#ef4444','#10b981','#f472b6','#7a9cc0','#60a5fa','#34d399','#fbbf24','#ff8a80'];
 Chart.defaults.color = '#c5d0de';
@@ -1227,9 +1234,9 @@ function setSlice(name) {
   updateChart('hourChart', s.hour.labels, [{data: s.hour.values}]);
   updateChart('kindChart', s.by_kind.labels, [{data: s.by_kind.values}]);
 
-  if (HAS_WRAPUP) document.getElementById('wrapupRows').innerHTML = rowsHtml(s.wrapup.labels.map(function(l,i){return [l,s.wrapup.values[i]];}), s.total);
-  if (HAS_STRENGTHS) document.getElementById('strengthRows').innerHTML = rowsHtml(s.strengths.labels.map(function(l,i){return [l,s.strengths.values[i]];}), s.total);
-  if (HAS_COACHING) document.getElementById('coachingRows').innerHTML = rowsHtml(s.coaching.labels.map(function(l,i){return [l,s.coaching.values[i]];}), s.total);
+  if (HAS_CATEGORIES) document.getElementById('categoryRows').innerHTML = rowsHtml(s.categories.labels.map(function(l,i){return [l,s.categories.values[i]];}), s.total);
+  if (HAS_HIGHLIGHTS) document.getElementById('highlightRows').innerHTML = rowsHtml(s.highlights.labels.map(function(l,i){return [l,s.highlights.values[i]];}), s.total);
+  if (HAS_CONCERNS) document.getElementById('concernRows').innerHTML = rowsHtml(s.concerns.labels.map(function(l,i){return [l,s.concerns.values[i]];}), s.total);
 
   document.getElementById('agentRows').innerHTML = (s.agents || []).map(function(a) {
     return '<tr><td>' + esc(a.name) + '</td><td class="num">' + fmtNum(a.count) +
@@ -1238,8 +1245,8 @@ function setSlice(name) {
            '</td><td class="num">' + fmtNum(a.scored) + '</td></tr>';
   }).join('') || '<tr><td colspan="5" class="empty-row">No agents</td></tr>';
 
-  document.getElementById('lowRows').innerHTML = renderSamples(s.low_scores, 'coaching');
-  document.getElementById('highRows').innerHTML = renderSamples(s.high_scores, 'strengths');
+  document.getElementById('lowRows').innerHTML = renderSamples(s.low_scores, 'concerns');
+  document.getElementById('highRows').innerHTML = renderSamples(s.high_scores, 'highlights');
 }
 
 function renderSamples(samples, detailKey) {
@@ -1317,8 +1324,8 @@ def main():
 
     if not any(fields.values()):
         sys.exit(
-            "No AI fields configured. Add at least one of 'score', 'star', 'wrap_up', "
-            "'strengths', 'coaching', 'notes' under \"fields\" in config.json."
+            "No AI fields configured. Add at least one of 'score', 'star', 'categories', "
+            "'highlights', 'concerns', 'notes' under \"fields\" in config.json."
         )
 
     print(f"\n=== CTM AI Assessment Dashboard: {customer_name} ===")

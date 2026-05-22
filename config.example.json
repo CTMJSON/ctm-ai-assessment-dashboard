@@ -7,12 +7,12 @@
   "output_file": "outputs/customer_ai_assessment_report.html",
 
   "fields": {
-    "score":     {"key": "total_call_score",      "label": "Total Call Score"},
-    "star":      {"key": "agent_star_rating",     "label": "Star Rating"},
-    "wrap_up":   {"key": "ai_wrap_up_code_1",     "label": "Wrap-Up Code"},
-    "strengths": {"key": "agent_strengths",       "label": "Agent Strengths"},
-    "coaching":  {"key": "coaching_opportunities","label": "Coaching Opportunities"},
-    "notes":     {"key": "agent_score_notes",     "label": "Score Notes"}
+    "score":      {"key": "your_score_custom_field",       "label": "Call Score"},
+    "star":       {"key": "your_star_rating_field",        "label": "Star Rating"},
+    "categories": {"key": "your_wrapup_or_topic_field",    "label": "Wrap-Up Code"},
+    "highlights": {"key": "your_positives_field",          "label": "Agent Strengths"},
+    "concerns":   {"key": "your_negatives_field",          "label": "Coaching Opportunities"},
+    "notes":      {"key": "your_summary_text_field",       "label": "Score Notes"}
   },
 
   "customer_segments": [
