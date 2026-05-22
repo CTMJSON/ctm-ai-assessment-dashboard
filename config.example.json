@@ -1,0 +1,22 @@
+{
+  "customer_name": "Customer Name",
+  "auth_env_key": "customer_env_key",
+  "account_id": 0,
+  "days_back": 30,
+  "workers": 6,
+  "output_file": "outputs/customer_ai_assessment_report.html",
+
+  "fields": {
+    "score":     {"key": "total_call_score",      "label": "Total Call Score"},
+    "star":      {"key": "agent_star_rating",     "label": "Star Rating"},
+    "wrap_up":   {"key": "ai_wrap_up_code_1",     "label": "Wrap-Up Code"},
+    "strengths": {"key": "agent_strengths",       "label": "Agent Strengths"},
+    "coaching":  {"key": "coaching_opportunities","label": "Coaching Opportunities"},
+    "notes":     {"key": "agent_score_notes",     "label": "Score Notes"}
+  },
+
+  "customer_segments": [
+    {"id": "existing", "label": "Existing Customer", "short": "EC", "tags": ["ec"]},
+    {"id": "new",      "label": "New Customer",      "short": "NC", "tags": ["nc"]}
+  ]
+}
